@@ -224,6 +224,9 @@ type ServiceMonitorSpec struct {
 	SelectorMatchLabels map[string]string `json:"selectorMatchLabels,omitempty"`
 	SelectorMatchExpressions []metav1.LabelSelectorRequirement `json:"selectorMatchExpressions,omitempty"`
 }
+type ConfigSpec struct {
+	Properties map[string]string `json:"properties,omitempty"`
+}
 type CoordinatorSpec struct {
 	Enabled bool `json:"enabled,omitempty"`
 	Replicas int32 `json:"replicas,omitempty"`
@@ -250,6 +253,8 @@ type CoordinatorSpec struct {
 	ServiceAccount string `json:"serviceAccount,omitempty"`
 	ConfigMounts []corev1.VolumeMount `json:"configMounts,omitempty"`
 	SecretMounts []corev1.VolumeMount `json:"secretMounts,omitempty"`
+	ConfigMap corev1.ConfigMap `json:"ConfigMap,omitempty"`
+	Config *ConfigSpec `json:"config,omitempty"`
 }
 type WorkerSpec struct {
 	Enabled bool `json:"enabled,omitempty"`
@@ -277,6 +282,8 @@ type WorkerSpec struct {
 	ServiceAccount string `json:"serviceAccount,omitempty"`
 	ConfigMounts []corev1.VolumeMount `json:"configMounts,omitempty"`
 	SecretMounts []corev1.VolumeMount `json:"secretMounts,omitempty"`
+	ConfigMap corev1.ConfigMap `json:"ConfigMap,omitempty"`
+	Config *ConfigSpec `json:"config,omitempty"`
 }
 
 // ImageSpec defines the configuration for the container image used in the Trino cluster.
@@ -286,6 +293,11 @@ type ImageSpec struct {
 	Tag string `json:"tag,omitempty"`
 	PullPolicy corev1.PullPolicy `json:"pullPolicy,omitempty"`
 	UseRepositoryasSoleImageReference bool `json:"useRepositoryasSoleImageReference,omitempty"`	
+}
+
+type CatalogSpec struct {
+	ConnectorName string `json:"connectorName,omitempty"`
+	Properties map[string]string `json:"properties,omitempty"`
 }
 
 // TrinoClusterSpec defines the desired state of TrinoCluster.
@@ -316,7 +328,7 @@ type TrinoClusterSpec struct {
 	SessionProperties string`json:"sessionProperties,omitempty"`
 	EventListenerProperties []string `json:"eventListenerProperties,omitempty"`
 
-	Catalogs map[string]string `json:"catalogs,omitempty"`
+	Catalogs map[string]CatalogSpec `json:"catalogs,omitempty"`
 
 	Env []corev1.EnvVar `json:"env,omitempty"`
 	EnvFrom []corev1.EnvFromSource `json:"envFrom,omitempty"`
