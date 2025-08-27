@@ -15,6 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	trinov1alpha1 "github.com/joshuaFordyce/TrinoOperator/api/v1alpha1"
@@ -685,6 +686,84 @@ func (r *TrinoClusterReconciler ) reconcileCoordinatorDeployment(ctx context.Con
 func int32Ptr(i int32) *int32 {
     return &i
 }
+
+func (r *TrinoClusterReconciler) cleanup(ctx context.Context, trinoCluster *trinov1alpha1.TrinoCluster) error {
+    // Delete the coordinator deployment
+
+    if err := r.Client.Delete(ctx, &appsv1.Deployment{
+        ObjectMeta: metav1.ObjectMeta{
+            Name: fmt.Sprintf("%s-coordinator", trinoCluster.Name),
+            Namespace: trinoCluster.Namespace,
+        },
+    }); client.IgnoreNotFound(err) != nil {
+        return err
+    }
+
+    if err := r.Client.Delete(ctx, &appsv1.Deployment{
+        ObjectMeta: metav1.ObjectMeta{
+            Name: fmt.Sprintf("%s-worker", trinoCluster.Name),
+            Namespace: trinoCluster.Namespace,
+        },
+    }); client.IgnoreNotFound(err) != nil {
+        return err
+    }
+
+    if err := r.Client.Delete(ctx, &corev1.Service{
+        ObjectMeta: metav1.ObjectMeta{
+            Name: fmt.Sprintf("%s-coordinator-service", trinoCluster.Name),
+            Namespace: trinoCluster.Namespace,
+        },
+    }); client.IgnoreNotFound(err) != nil {
+        return err
+    }
+
+    if err := r.Client.Delete(ctx, &corev1.Service{
+        ObjectMeta: metav1.ObjectMeta{
+            Name: fmt.Sprintf("%s-worker-service", trinoCluster.Name),
+            Namespace: trinoCluster.Namespace,
+        },
+    }); client.IgnoreNotFound(err) != nil {
+        return err
+    }
+
+    if err := r.Client.Delete(ctx, &corev1.ConfigMap{
+        ObjectMeta: metav1.ObjectMeta{
+            Name: fmt.Sprintf("%s-workerCM", trinoCluster.Name),
+            Namespace: trinoCluster.Namespace,
+        },
+    }); client.IgnoreNotFound(err) != nil {
+        return err
+    }
+
+    if err := r.Client.Delete(ctx, &corev1.ConfigMap{
+        ObjectMeta: metav1.ObjectMeta{
+            Name: fmt.Sprintf("%s-coordinatorCM", trinoCluster.Name),
+            Namespace: trinoCluster.Namespace,
+        },
+    }); client.IgnoreNotFound(err) != nil {
+        return err
+    }
+
+    if err := r.Client.Delete(ctx, &corev1.ConfigMap{
+        ObjectMeta: metav1.ObjectMeta{
+            Name: fmt.Sprintf("%s-catalog", trinoCluster.Name),
+            Namespace: trinoCluster.Namespace,
+        },
+    }); client.IgnoreNotFound(err) != nil {
+        return err
+    }
+
+    if err := r.Client.Delete(ctx, &networkingv1.Ingress{
+        ObjectMeta: metav1.ObjectMeta{
+            Name: fmt.Sprintf("%s-ingress", trinoCluster.Name),
+            Namespace: trinoCluster.Namespace,
+        },
+    }); client.IgnoreNotFound(err) != nil {
+        return err
+    }
+
+return nil
+}
 func (r *TrinoClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
     _ = logf.FromContext(ctx)
 
@@ -756,8 +835,39 @@ func (r *TrinoClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request
         return ctrl.Result{}, err
     }
 
-    
- 
+    //Add the Finalizer logic
+
+    const trinoClusterFinalizer = "trino.trino.io/finalizer"
+
+    if !controllerutil.ContainsFinalizer(trinocluster, trinoClusterFinalizer) {
+        //add the finalizer to the object
+        controllerutil.AddFinalizer(trinocluster, trinoClusterFinalizer)
+        // Update the object to save the finalizer
+        if err := r.Update(ctx, trinocluster); err != nil {
+            return ctrl.Result{}, err
+
+        }
+
+
+
+    }
+
+    isTrinoClusterMarkedForDeleteion := trinocluster.GetDeletionTimestamp() != nil 
+    if isTrinoClusterMarkedForDeleteion {
+        if controllerutil.ContainsFinalizer(trinocluster, trinoClusterFinalizer) {
+            // Run the cleanup logic here
+            // Delete all the owned resources (deployments, services, Configmaps)
+            if err := r.cleanup(ctx, trinocluster); err != nil {
+                return ctrl.Result{}, err
+            }
+
+            //remove the finalizer from the object
+            controllerutil.RemoveFinalizer(trinocluster, trinoClusterFinalizer)
+            if err := r.Update(ctx, trinocluster); err != nil {
+                return ctrl.Result{}, err
+            }
+        }
+    }
 return ctrl.Result{}, nil
 }
 
